@@ -156,7 +156,7 @@ class Slot {
     screenToWorld(p[9].x, p[9].y, _b);
     const dx = _b.x - _a.x;
     const dy = _b.y - _a.y;
-    this.targetScale = THREE.MathUtils.clamp(Math.hypot(dx, dy) * CONFIG.flowerScale, 0.2, viewMin() * 0.4);
+    this.targetScale = THREE.MathUtils.clamp(Math.hypot(dx, dy) * CONFIG.flowerScale, 0.3, viewMin() * 0.5);
     this.targetLean = Math.atan2(-dx, dy);
 
     FINGERTIPS.forEach((id, k) => screenToWorld(p[id].x, p[id].y, this.tips[k]));
@@ -184,13 +184,13 @@ class Slot {
 
     if (mouse) {
       screenToWorld(pointer.x, pointer.y, this.targetPos);
-      this.targetScale = viewMin() * 0.2;
+      this.targetScale = viewMin() * 0.3;
       this.targetBloom = pointer.down ? 0 : 1;
       this.targetLean = THREE.MathUtils.clamp(-pointer.vx * 0.0006, -0.5, 0.5);
     } else if (this.demo) {
       // 没有手时：画面中央自己开合，提示玩法
       this.targetPos.set(Math.sin(t * 0.31) * 0.15, -0.1 + Math.sin(t * 0.5) * 0.06, 0);
-      this.targetScale = viewMin() * 0.22;
+      this.targetScale = viewMin() * 0.3;
       this.targetBloom = 0.5 - 0.5 * Math.cos(t * 0.55);
       this.targetLean = Math.sin(t * 0.4) * 0.12;
     }

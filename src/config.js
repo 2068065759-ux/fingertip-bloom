@@ -38,7 +38,7 @@ export const CONFIG = {
   petalsPerLayer: [5, 7, 9, 11],
   particlesPerPetal: [650, 750, 850, 950],
   petalPointSize: 20,          // 花瓣粒子基础尺寸
-  petalIntensity: 0.32,         // 花瓣亮度（叠加混合，过高会发白）
+  petalIntensity: 0.36,         // 花瓣亮度（叠加混合，过高会发白）
   stamenStrands: 64,           // 花蕊丝数量
   stamenPointSize: 22,
 
@@ -50,7 +50,7 @@ export const CONFIG = {
   closeSpeed: 5.5,             // 闭合跟随速度
 
   // —— 跟随手 ——
-  flowerScale: 1.15,           // 花朵尺寸 = 手掌长度 × 该系数
+  flowerScale: 1.8,            // 花朵尺寸 = 手掌长度 × 该系数
   anchorToTips: 0.5,           // 花心位置：0 在掌心，1 在指尖中心
   fingerRadius: 0.32,          // 指尖拨动半径（相对花朵尺寸）
   fingerPush: 0.16,            // 指尖拨动力度
@@ -58,13 +58,13 @@ export const CONFIG = {
   // —— 花粉 ——
   pollenMax: 1600,
   pollenRate: 26,              // 盛开时每秒飘散数量
-  pollenSize: 20,
+  pollenSize: 26,
   burstCount: 140,             // 快速“握拳→张开”时的爆发数量
 
   // —— 后期辉光 ——
-  bloomStrength: 0.7,
-  bloomRadius: 0.35,
-  bloomThreshold: 0.62,
+  bloomStrength: 1.15,
+  bloomRadius: 0.55,
+  bloomThreshold: 0.5,
 
   videoDim: 0.22,               // 摄像头背景亮度（0~1）
   demoDelay: 1.5,              // 多久看不到手后进入演示动画（秒）
@@ -105,10 +105,13 @@ if (IS_MOBILE) {
 }
 
 // 花色：base 花瓣根部 / mid 花瓣中段 / tip 花瓣边缘与尖端 / core 花蕊
+// rainbow: true 为全光谱幻彩（花朵一圈是色环，随时间流动）
 export const PALETTES = [
-  { name: '樱粉', base: '#7a0634', mid: '#ff3d8b', tip: '#fff0f6', core: '#ffc93d' },
-  { name: '睡莲', base: '#33106b', mid: '#9a6bff', tip: '#f4f7ff', core: '#ffd75e' },
+  { name: '幻彩', rainbow: true, base: '#5b0a8f', mid: '#ff2bd6', tip: '#ffffff', core: '#fff6b0' },
+  { name: '樱粉', base: '#7a0634', mid: '#ff2d95', tip: '#ffe6f4', core: '#ffd23d' },
+  { name: '极光', base: '#003a33', mid: '#00ffc8', tip: '#eafffa', core: '#c6ff3d' },
+  { name: '睡莲', base: '#33106b', mid: '#b06bff', tip: '#f4f0ff', core: '#ffd75e' },
   { name: '赤焰', base: '#6e070b', mid: '#ff3a10', tip: '#ffe0a3', core: '#fff3b0' },
-  { name: '冰晶', base: '#061f5c', mid: '#14a8ff', tip: '#effdff', core: '#a8fff0' },
-  { name: '金桂', base: '#5c2a04', mid: '#ff9d0a', tip: '#fff6dc', core: '#ffffff' },
+  { name: '冰晶', base: '#061f5c', mid: '#00c2ff', tip: '#effdff', core: '#a8fff0' },
+  { name: '金桂', base: '#5c2a04', mid: '#ffa20a', tip: '#fff6dc', core: '#ffffff' },
 ];

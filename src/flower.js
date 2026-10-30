@@ -33,6 +33,8 @@ uniform vec3 uFingers[5];
 uniform vec3 uColBase;
 uniform vec3 uColMid;
 uniform vec3 uColTip;
+uniform float uRainbow; // 0 = 普通花色，1 = 全光谱幻彩
+uniform float uIri;     // 花瓣边缘的流动虹彩光泽
 
 attribute float aLayer;
 attribute float aAzimuth;
@@ -42,6 +44,12 @@ attribute vec4 aRand;
 
 varying vec3 vColor;
 varying float vAlpha;
+
+vec3 hsv2rgb(vec3 c) {
+  vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+  vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+  return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
 
 void main() {
   float u = aUV.x;
@@ -116,19 +124,39 @@ void main() {
   vec4 mv = viewMatrix * wp;
   gl_Position = projectionMatrix * mv;
 
-  float size = (0.5 + aRand.x * 0.9) * (1.0 - 0.3 * u) * (1.0 + drifter * 0.4);
+  // 闪烁星点：约 1.5% 的粒子周期性爆亮
+  float twinkle = step(0.985, aRand.z) * pow(0.5 + 0.5 * sin(uTime * (5.0 + aRand.x * 9.0) + aRand.w * 40.0), 10.0);
+  float edge = smoothstep(0.7, 1.0, abs(v));
+  float rib = 1.0 - smoothstep(0.0, 0.07, abs(v));
+
+  float size = (0.5 + aRand.x * 0.9) * (1.0 - 0.3 * u) * (1.0 + drifter * 0.4) * (1.0 + twinkle * 1.8 * lb);
   gl_PointSize = uSize * uScale * size * uPixelRatio / max(-mv.z, 0.1);
 
   // —— 颜色：根部深 → 中段 → 尖端/边缘浅 ——
   vec3 col = mix(uColBase, uColMid, smoothstep(0.0, 0.5, u));
-  col = mix(col, uColTip, smoothstep(0.5, 1.05, u));
-  float edge = smoothstep(0.7, 1.0, abs(v));
-  col = mix(col, uColTip, edge * 0.45);
-  col *= mix(0.55, 1.25, smoothstep(0.0, 1.0, u)) * mix(1.05, 0.95, aLayer) * mix(0.7, 1.0, lb);
-  col += vec3(1.0, 0.9, 0.95) * min(glow, 1.5) * 0.6;
+  col = mix(col, uColTip, smoothstep(0.55, 1.05, u));
+  col = mix(col, uColTip, edge * 0.35);
+
+  // 幻彩：花朵一圈是完整色环，并随时间缓缓流动；瓣尖饱和度降低、发白发亮
+  float hue = aAzimuth / 6.28318 + u * 0.22 + aLayer * 0.15 - uTime * 0.07;
+  vec3 rainbow = hsv2rgb(vec3(fract(hue), mix(1.0, 0.45, smoothstep(0.7, 1.05, u)), mix(0.5, 1.2, u)));
+  col = mix(col, rainbow, uRainbow);
+
+  col *= mix(0.55, 1.3, smoothstep(0.0, 1.0, u)) * mix(1.05, 0.95, aLayer) * mix(0.7, 1.0, lb);
+
+  // 虹彩光泽：花瓣边缘一圈流动的彩虹高光（所有花色都有）
+  float sheenHue = fract(phi / 6.28318 * 2.0 + u * 0.7 - uTime * 0.18);
+  col += hsv2rgb(vec3(sheenHue, 0.75, 1.0)) * edge * uIri * (0.35 + 0.65 * lb);
+
+  // 轮廓更清晰：花瓣边缘和中脉提亮
+  col *= 1.0 + edge * 0.7 + rib * 0.45;
+
+  col += vec3(1.0, 0.95, 1.0) * twinkle * 3.0 * lb;
+  col += vec3(1.0, 0.9, 0.95) * min(glow, 1.5) * 0.7;
   vColor = col;
 
   float alpha = uAlpha * uIntensity * (0.3 + 0.7 * aRand.y * aRand.y);
+  alpha *= 1.0 + edge * 0.6 + rib * 0.35 + twinkle * 2.0;
   alpha *= mix(1.0, 1.0 - life, drifter * lb);
   vAlpha = alpha;
 }
@@ -180,7 +208,7 @@ void main() {
 
   vec4 mv = modelViewMatrix * vec4(pos, 1.0);
   gl_Position = projectionMatrix * mv;
-  float size = mix(0.55, 1.5, aAnther) * (0.7 + aRand.z * 0.6);
+  float size = mix(0.55, 1.9, aAnther) * (0.7 + aRand.z * 0.6);
   gl_PointSize = uSize * uScale * size * uPixelRatio / max(-mv.z, 0.1);
 
   vColor = mix(uColCore * 0.55, uColCore, aT) * mix(1.0, 1.7, aAnther);
@@ -290,6 +318,46 @@ function buildStamenGeometry() {
   return g;
 }
 
+let rayTexture = null;
+function getRayTexture() {
+  if (rayTexture) return rayTexture;
+  const S = 256;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const ctx = c.getContext('2d');
+  ctx.translate(S / 2, S / 2);
+  ctx.globalCompositeOperation = 'lighter';
+  // 长短交替的星芒
+  const rays = 12;
+  for (let i = 0; i < rays; i++) {
+    const long = i % 3 === 0;
+    const len = (long ? 0.5 : 0.3) * S;
+    const w = long ? 5 : 3;
+    ctx.save();
+    ctx.rotate((i / rays) * Math.PI * 2);
+    const g = ctx.createLinearGradient(0, 0, len, 0);
+    g.addColorStop(0, 'rgba(255,255,255,0.9)');
+    g.addColorStop(0.35, 'rgba(255,255,255,0.35)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(0, -w);
+    ctx.lineTo(len, 0);
+    ctx.lineTo(0, w);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  const core = ctx.createRadialGradient(0, 0, 0, 0, 0, S * 0.18);
+  core.addColorStop(0, 'rgba(255,255,255,0.8)');
+  core.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = core;
+  ctx.fillRect(-S / 2, -S / 2, S, S);
+  rayTexture = new THREE.CanvasTexture(c);
+  rayTexture.colorSpace = THREE.SRGBColorSpace;
+  return rayTexture;
+}
+
 function getHaloTexture() {
   if (haloTexture) return haloTexture;
   const c = document.createElement('canvas');
@@ -358,6 +426,8 @@ export class Flower {
       uColBase: { value: this.colors.base },
       uColMid: { value: this.colors.mid },
       uColTip: { value: this.colors.tip },
+      uRainbow: { value: palette.rainbow ? 1 : 0 },
+      uIri: { value: 0.9 },
     };
 
     this.petals = new THREE.Points(
@@ -380,7 +450,7 @@ export class Flower {
         uniforms: {
           ...shared,
           uSize: { value: CONFIG.stamenPointSize },
-          uIntensity: { value: 0.5 },
+          uIntensity: { value: 0.8 },
           uColCore: { value: this.colors.core },
         },
         vertexShader: STAMEN_VERT,
@@ -405,10 +475,25 @@ export class Flower {
       }),
     );
     this.root.add(this.halo);
+
+    // 盛开时花心背后旋转的星芒
+    this.rays = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: getRayTexture(),
+        color: 0xffffff,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        opacity: 0,
+      }),
+    );
+    this.rays.renderOrder = -0.5;
+    this.root.add(this.rays);
   }
 
   setPalette(palette) {
     this.palette = palette;
+    this.rainbowTarget = palette.rainbow ? 1 : 0;
     this.targetColors.base.set(palette.base);
     this.targetColors.mid.set(palette.mid);
     this.targetColors.tip.set(palette.tip);
@@ -453,8 +538,19 @@ export class Flower {
       else this.fingers[i].set(1e4, 1e4, 0);
     }
 
+    const rk = 1 - Math.exp(-s.dt * 3);
+    pu.uRainbow.value += ((this.rainbowTarget ?? pu.uRainbow.value) - pu.uRainbow.value) * rk;
+
+    // 星芒：幻彩模式下颜色缓慢变换
+    const rm = this.rays.material;
+    if (this.palette.rainbow) rm.color.setHSL((s.t * 0.07) % 1, 0.9, 0.7);
+    else rm.color.copy(this.colors.tip).lerp(this.colors.mid, 0.4);
+    rm.rotation = s.t * 0.25;
+    rm.opacity = s.presence * s.bloom * s.bloom * 0.55 * (0.85 + 0.15 * Math.sin(s.t * 3.1));
+    this.rays.scale.setScalar(1.2 + 2.6 * s.bloom + s.scatter * 1.2);
+
     this.halo.material.color.copy(this.colors.mid);
-    this.halo.scale.setScalar(1.6 + 1.6 * s.bloom);
-    this.halo.material.opacity = s.presence * (0.03 + 0.08 * s.bloom);
+    this.halo.scale.setScalar(1.8 + 2.2 * s.bloom);
+    this.halo.material.opacity = s.presence * (0.05 + 0.14 * s.bloom);
   }
 }

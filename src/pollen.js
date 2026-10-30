@@ -43,6 +43,7 @@ void main() {
 
 const tmpA = new THREE.Color();
 const tmpB = new THREE.Color();
+const tmpC = new THREE.Color();
 
 export class Pollen {
   constructor(max = CONFIG.pollenMax, pixelRatio = 1) {
@@ -122,10 +123,14 @@ export class Pollen {
       this.size[i] = 0.5 + Math.random() * 1.2;
       this.seed[i] = Math.random() * 100;
 
-      const m = Math.random();
-      this.color[i * 3] = tmpA.r + (tmpB.r - tmpA.r) * m;
-      this.color[i * 3 + 1] = tmpA.g + (tmpB.g - tmpA.g) * m;
-      this.color[i * 3 + 2] = tmpA.b + (tmpB.b - tmpA.b) * m;
+      if (palette.rainbow) {
+        tmpC.setHSL(Math.random(), 1, 0.6 + Math.random() * 0.25);
+      } else {
+        tmpC.copy(tmpA).lerp(tmpB, Math.random());
+      }
+      this.color[i * 3] = tmpC.r * 1.4;
+      this.color[i * 3 + 1] = tmpC.g * 1.4;
+      this.color[i * 3 + 2] = tmpC.b * 1.4;
     }
     this.aColor.needsUpdate = true;
     this.aSize.needsUpdate = true;
