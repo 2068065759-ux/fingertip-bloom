@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>指尖花开 · Fingertip Bloom</title>
+  <meta name="theme-color" content="#07060b" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <!-- 摄像头原始画面（隐藏，由 WebGL 作为背景纹理绘制） -->
+  <video id="video" playsinline muted autoplay></video>
+
+  <!-- Three.js 画布 + 手部骨骼调试层 -->
+  <canvas id="scene"></canvas>
+  <canvas id="overlay"></canvas>
+
+  <!-- 开场 -->
+  <section id="intro" class="intro">
+    <div class="intro-card">
+      <p class="eyebrow">FINGERTIP · BLOOM</p>
+      <h1>指尖花开</h1>
+      <p class="lede">握拳，花合为苞；张掌，花绽于指尖。</p>
+      <ol class="steps">
+        <li><b>张开手掌</b><span>花瓣由外向内层层绽放，花粉随之飞散</span></li>
+        <li><b>握紧拳头</b><span>花瓣收拢，闭合成一枚花苞</span></li>
+        <li><b>移动手指</b><span>花随手走，指尖可拨开花瓣</span></li>
+      </ol>
+      <div class="actions">
+        <button id="btn-start" class="btn primary">开启摄像头</button>
+        <button id="btn-mouse" class="btn ghost">先用鼠标体验</button>
+      </div>
+      <p id="status" class="status" aria-live="polite"></p>
+      <p id="error" class="error" hidden></p>
+      <div id="qr" class="qr" hidden>
+        <img id="qr-img" alt="本页二维码" width="96" height="96" />
+        <span>用手机扫码<br />在手机上打开</span>
+      </div>
+      <p class="fine">画面只在本机浏览器内处理，不会上传任何数据。</p>
+    </div>
+  </section>
+
+  <!-- 状态 HUD -->
+  <header id="hud" class="hud" hidden>
+    <div class="chip">
+      <span class="dot" id="state-dot"></span>
+      <span id="state-label">—</span>
+      <span class="bar"><i id="state-bar"></i></span>
+    </div>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <!-- 操作坞 -->
+  <nav id="dock" class="dock" hidden>
+    <button data-action="palette"><kbd>C</kbd><span id="palette-name">樱粉</span></button>
+    <button data-action="video"><kbd>V</kbd>画面</button>
+    <button data-action="flip" id="btn-flip" hidden>翻转</button>
+    <button data-action="skeleton" class="on"><kbd>S</kbd>骨骼</button>
+    <button data-action="mode"><kbd>M</kbd><span id="mode-label">鼠标模式</span></button>
+    <button data-action="hide"><kbd>H</kbd>隐藏</button>
+  </nav>
+
+  <div id="toast" class="toast"></div>
+  <div id="fatal" class="fatal" hidden></div>
+
+  <!--
+    依赖加载器：优先使用本地 node_modules（npm install 之后），
+    否则回退到 jsDelivr CDN。importmap 必须在任何模块加载前插入。
+  -->
+  <script>
+    (async function boot() {
+      var CDN = 'https://cdn.jsdelivr.net/npm/';
+      var THREE_VER = '0.170.0';
+      var MP_VER = '0.10.14';
+
+      function probe(url) {
+        var ctl = window.AbortController ? new AbortController() : null;
+        var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 3500);
+        return fetch(url, { method: 'HEAD', cache: 'no-store', signal: ctl ? ctl.signal : undefined })
+          .then(function (r) {
+            var type = r.headers.get('content-type') || '';
+            return r.ok && type.indexOf('text/html') === -1;
+          })
+          .catch(function () { return false; })
+          .then(function (ok) { clearTimeout(timer); return ok; });
+      }
+
+      // 依次尝试，返回第一个可用的包根目录
+      async function pick(bases, file) {
+        for (var i = 0; i < bases.length - 1; i++) {
+          if (await probe(bases[i] + file)) return bases[i];
+        }
+        return bases[bases.length - 1];
+      }
+
+      function sources(pkg, ver) {
+        return [
+          './node_modules/' + pkg + '/',
+          CDN + pkg + '@' + ver + '/',
+          'https://fastly.jsdelivr.net/npm/' + pkg + '@' + ver + '/',
+          'https://registry.npmmirror.com/' + pkg + '/' + ver + '/files/',
+          'https://unpkg.com/' + pkg + '@' + ver + '/'
+        ];
+      }
+
+      var bases = await Promise.all([
+        pick(sources('three', THREE_VER), 'build/three.module.js'),
+        pick(sources('@mediapipe/tasks-vision', MP_VER), 'vision_bundle.mjs')
+      ]);
+      var threeBase = bases[0];
+      var mpBase = bases[1];
+
+      var imports = {
+        'three': threeBase + 'build/three.module.js',
+        'three/addons/': threeBase + 'examples/jsm/',
+        '@mediapipe/tasks-vision': mpBase + 'vision_bundle.mjs'
+      };
+
+      var map = document.createElement('script');
+      map.type = 'importmap';
+      map.textContent = JSON.stringify({ imports: imports });
+      document.head.appendChild(map);
+
+      window.__ASSETS__ = { three: threeBase, mediapipe: mpBase };
+
+      try {
+        await import('./src/main.js');
+      } catch (err) {
+        console.error(err);
+        var box = document.getElementById('fatal');
+        box.hidden = false;
+        box.innerHTML =
+          '<h2>页面没能启动</h2>' +
+          '<p>' + (location.protocol === 'file:'
+            ? '请不要直接双击打开 index.html，需要通过本地 HTTP 服务访问（运行 <code>npm start</code> 或 <code>python -m http.server</code>）。'
+            : '无法加载 Three.js。请检查网络后刷新；电脑上也可以在项目目录运行 <code>npm install</code> 使用本地依赖。') +
+          '</p><pre>' + String(err && err.message || err) + '</pre>';
+      }
+    })();
+  </script>
+</body>
+</html>

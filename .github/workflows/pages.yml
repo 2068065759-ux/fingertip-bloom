@@ -1,0 +1,64 @@
+# 推送到 main 后自动部署到 GitHub Pages（https://<用户名>.github.io/<仓库名>/）
+# 构建时把 Three.js、MediaPipe 和手部模型一起打包进站点，手机打开不依赖任何外部 CDN。
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install runtime dependencies
+        run: npm install --omit=dev --no-audit --no-fund
+
+      - name: Fetch hand landmark model
+        run: |
+          mkdir -p models
+          if [ ! -s models/hand_landmarker.task ]; then
+            curl -fL --retry 3 -o models/hand_landmarker.task \
+              https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task
+          fi
+          ls -lh models
+
+      - name: Assemble site
+        run: |
+          mkdir -p _site/node_modules/three _site/node_modules/@mediapipe
+          cp -r index.html style.css src models _site/
+          cp -r node_modules/three/build node_modules/three/examples _site/node_modules/three/
+          cp -r node_modules/@mediapipe/tasks-vision _site/node_modules/@mediapipe/
+          touch _site/.nojekyll
+          du -sh _site
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

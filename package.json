@@ -1,0 +1,19 @@
+{
+  "name": "fingertip-bloom",
+  "version": "1.0.0",
+  "private": true,
+  "description": "手势控制粒子花朵在指尖绽放 —— Three.js + MediaPipe Hands",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "vite --open",
+    "fetch-model": "node scripts/fetch-model.mjs"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "0.10.14",
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}
